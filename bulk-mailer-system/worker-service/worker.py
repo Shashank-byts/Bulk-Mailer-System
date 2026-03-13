@@ -14,8 +14,15 @@ SMTP_PORT = int(os.environ.get('SMTP_PORT', 587))
 SMTP_USERNAME = os.environ.get('SMTP_USERNAME', 'your_email@gmail.com')
 SMTP_PASSWORD = os.environ.get('SMTP_PASSWORD', 'your_app_password')
 
-def send_email(email, subject, body):
+# Dictionary to track when a batch started processing
+batch_start_times = {}
+
+def send_email(email, subject, body, current_index=None, total_emails=None, batch_id=None):
     print(f"\n[🔄] Preparing to send email to: {email}")
+    if current_index and total_emails:
+        print(f"[{current_index}/{total_emails}] Processing...")
+    
+    start_time = time.time()
     
     try:
         # Create the email message
@@ -39,12 +46,34 @@ def send_email(email, subject, body):
             if SMTP_USERNAME and SMTP_PASSWORD:
                 server.login(SMTP_USERNAME, SMTP_PASSWORD)
                 server.send_message(msg)
-                print(f"[✅] SUCCESS: Email successfully delivered to {email}")
+                
+                duration = time.time() - start_time
+                print(f"[✅] SUCCESS: Delivered to {email} in {duration:.2f} seconds")
+                
+                if current_index and total_emails:
+                    remaining = total_emails - current_index
+                    print(f"[📊] Progress: {current_index} successful, {remaining} remaining in batch")
+                    # print(f"Partition: {msg.partition()}, Offset: {msg.offset()}")
+                    
+                    if remaining == 0 and batch_id in batch_start_times:
+                        total_duration = time.time() - batch_start_times[batch_id]
+                        print("\n" + "=" * 50)
+                        print(f"[🎉] BATCH COMPLETE: Sent {total_emails} emails in {total_duration:.2f} seconds!")
+                        print("=" * 50 + "\n")
+                        del batch_start_times[batch_id] # Clean up memory
+                        
+                print("-" * 40 + "\n")
             else:
                 print(f"[⚠️] WARNING: SMTP credentials not properly set. Mocking send to {email}.")
                 time.sleep(1) # Simulate
     except Exception as e:
-        print(f"[❌] ERROR: Failed to send email via SMTP to {email}: {e}")
+        duration = time.time() - start_time
+        print(f"[❌] ERROR: Failed to send to {email} after {duration:.2f} seconds: {e}")
+        
+        if current_index and total_emails:
+            remaining = total_emails - current_index
+            print(f"[📊] Progress tracking: {remaining} remaining in batch")
+            
         print("-" * 40 + "\n")
 
 def main():
@@ -80,8 +109,15 @@ def main():
                     email = data.get('email')
                     subject = data.get('subject', 'No Subject')
                     body = data.get('body', '')
+                    current_index = data.get('currentIndex')
+                    total_emails = data.get('totalEmails')
+                    batch_id = data.get('batchId')
                     
-                    send_email(email, subject, body)
+                    if batch_id and current_index == 1:
+                        # Record the start time when the very first email of a batch arrives
+                        batch_start_times[batch_id] = time.time()
+                    
+                    send_email(email, subject, body, current_index, total_emails, batch_id)
                     
                     # Manually commit if needed, here auto commit is usually fine for simple case
                 except json.JSONDecodeError as e:

@@ -5,7 +5,7 @@ const generateEmail = require('../utils/aiGenerator');
 const sendBulkEmails = async (req, res) => {
   try {
     const { emails, description, subject: reqSubject, body: reqBody } = req.body;
-    
+
     // Check if the emails array is valid
     if (!emails || !Array.isArray(emails) || emails.length === 0) {
       return res.status(400).json({ error: 'Valid "emails" array is required' });
@@ -19,12 +19,12 @@ const sendBulkEmails = async (req, res) => {
       console.log('Generating email content using AI with description:', description);
       try {
         const generatedData = await generateEmail(description);
-        
+
         subject = generatedData.subject;
         body = generatedData.body;
 
         if (!subject || !body) {
-           throw new Error("AI output was not in the expected format. Missing subject or body in JSON.");
+          throw new Error("AI output was not in the expected format. Missing subject or body in JSON.");
         }
       } catch (aiError) {
         console.error("AI Generation Error:", aiError);
@@ -33,30 +33,33 @@ const sendBulkEmails = async (req, res) => {
     } else if (!subject || !body) {
       return res.status(400).json({ error: 'Either "description" or both "subject" and "body" are required' });
     }
-    
+
     // Connect to the kafka broker
     await producer.connect();
     const batchId = uuidv4();
-    
+
     // Create the messages to be sent to the kafka topic
-    const messages = emails.map(email => ({
+    const messages = emails.map((email, index) => ({
+      // key: email,
       value: JSON.stringify({
         batchId,
         email,
         subject,
-        body
+        body,
+        totalEmails: emails.length,
+        currentIndex: index + 1
       })
     }));
-    
+
     // Send the messages to the kafka topic
     console.log("Sending messages to Kafka:", messages);
     await producer.send({
-      // using key to ensure that the messages are sent to the same partition
-      key: batchId,
+      // We removed the batchId key here so that each message's individual key (email address) 
+      // is used to determine the partition instead!
       topic: 'bulk-emails',
       messages: messages,
     });
-    
+
     // Send the response to the client
     res.status(202).json({ message: `Queued ${emails.length} emails for sending` });
   } catch (error) {
