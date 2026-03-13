@@ -8,22 +8,25 @@ async function generateEmail(description) {
 
   const prompt = `
   Write a professional marketing email.
-
   Description: ${description}
-
-  Return:
-  Subject:
-  Body:
   `;
 
   const response = await client.chat.completions.create({
-    model: "gpt-4o-mini", // Updated to a valid model name, gpt-4.1-mini isn't a standard model!
+    model: "gpt-4o-mini", // Updated to a valid model name
+    response_format: { type: "json_object" },
     messages: [
-      { role: "user", content: prompt }
+      { 
+        role: "system", 
+        content: "You are an expert marketing email copywriter. You must output the result in structured JSON format with two keys: 'subject' and 'body'. Do not include markdown blocks or any conversational text."
+      },
+      { 
+        role: "user", 
+        content: prompt 
+      }
     ]
   });
 
-  return response.choices[0].message.content;
+  return JSON.parse(response.choices[0].message.content);
 }
 
 module.exports = generateEmail;

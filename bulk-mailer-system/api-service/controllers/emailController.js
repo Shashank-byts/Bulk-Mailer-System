@@ -18,17 +18,13 @@ const sendBulkEmails = async (req, res) => {
     if (description) {
       console.log('Generating email content using AI with description:', description);
       try {
-        const generatedContent = await generateEmail(description);
+        const generatedData = await generateEmail(description);
         
-        // Parse the returned text, assumed to be in "Subject: ... \n Body: ..." format
-        const subjectMatch = generatedContent.match(/Subject:\s*(.*)/i);
-        const bodyMatch = generatedContent.match(/Body:\s*([\s\S]*)/i);
-
-        if (subjectMatch) subject = subjectMatch[1].trim();
-        if (bodyMatch) body = bodyMatch[1].trim();
+        subject = generatedData.subject;
+        body = generatedData.body;
 
         if (!subject || !body) {
-           throw new Error("AI output was not in the expected format.");
+           throw new Error("AI output was not in the expected format. Missing subject or body in JSON.");
         }
       } catch (aiError) {
         console.error("AI Generation Error:", aiError);
